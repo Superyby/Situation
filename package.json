@@ -1,0 +1,38 @@
+{
+  "name": "three-react-starter",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "React + Three.js + GSAP 3D可视化学习项目",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "proxy": "node proxy-server.cjs",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "start": "vite preview --port 5544"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.182.0",
+    "gsap": "^3.14.2",
+    "axios": "^1.7.9",
+    "express": "^4.21.2",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/node": "^22.0.0",
+    "@types/express": "^5.0.0",
+    "@types/cors": "^2.8.17",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.182.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.0.0-beta.2"
+  },
+  "volta": {
+    "node": "25.0.0"
+  }
+}
