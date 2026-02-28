@@ -1,110 +1,83 @@
-import * as THREE from 'three';
-import { spaceTrackApi } from '../api/space-track';
-import { RENDER_CONFIG } from '../config';
-import type { Satellite, SpaceTrackTLE } from '../types/satellite';
+import * as THREE from 'three/webgpu';
+import { Satellite } from 'ootk';
+import { keepTrackApi, SatelliteData } from '../api/keeptrack';
+
+const EARTH_RADIUS_KM = 6371;
 
 /**
- * 卫星服务
- * 使用 Three.js Points 系统渲染卫星
+ * 卫星服务 - 丝滑版
  */
 class SatelliteService {
-  private satellites: Satellite[] = [];
-  private points: THREE.Points | null = null;
-  private geometry: THREE.BufferGeometry | null = null;
-  private positions: Float32Array | null = null;
+  private satellites: SatelliteData[] = [];
+  private mainGroup: THREE.Group | null = null;
+  private currentPositions: Float32Array | null = null;
+  private targetPositions: Float32Array | null = null;
+  private readonly lerp = 0.05; // 插值系数
 
-  async initialize(username: string, password: string): Promise<boolean> {
-    return await spaceTrackApi.login(username, password);
-  }
-
-  async loadSatellites(limit: number = 500): Promise<Satellite[]> {
-    console.log(`📡 正在加载 ${limit} 颗卫星数据...`);
-    const startTime = performance.now();
+  /**
+   * 加载全部卫星数据
+   */
+  async loadSatellites(): Promise<SatelliteData[]> {
+    console.log('🛰️ 正在加载卫星数据...');
     
-    const response = await spaceTrackApi.getTLE({ limit });
+    const rawData = await keepTrackApi.getPopularSatellites(20000, false);
     
-    if (!response.success || !response.data) {
-      console.error('❌ 加载卫星数据失败:', response.error);
-      return [];
+    this.satellites = [];
+    for (const data of rawData) {
+      const satData = keepTrackApi.convertToSatelliteData(data);
+      if (satData) {
+        this.satellites.push(satData);
+      }
     }
-
-    this.satellites = response.data.map((tle: SpaceTrackTLE) => 
-      this.convertToSatellite(tle)
-    );
     
-    const elapsed = (performance.now() - startTime).toFixed(0);
-    console.log(`✅ 成功加载 ${this.satellites.length} 颗卫星 (${elapsed}ms)`);
+    console.log(`✅ 成功加载 ${this.satellites.length} 颗卫星`);
     return this.satellites;
   }
 
-  private convertToSatellite(tle: SpaceTrackTLE): Satellite {
-    return {
-      id: tle.NORAD_CAT_ID,
-      name: tle.OBJECT_NAME,
-      tle: {
-        name: tle.TLE_LINE0 || tle.OBJECT_NAME,
-        line1: tle.TLE_LINE1,
-        line2: tle.TLE_LINE2,
-      },
-      position: this.calculatePosition(tle),
-      color: this.getColorByType(tle.OBJECT_NAME),
-      orbitParams: {
-        inclination: tle.INCLINATION,
-        raan: tle.RA_OF_ASC_NODE,
-        meanMotion: tle.MEAN_MOTION,
-        meanAnomaly: tle.MEAN_ANOMALY,
-      }
-    };
-  }
-
-  private calculatePosition(tle: SpaceTrackTLE): { x: number; y: number; z: number } {
-    const inclination = tle.INCLINATION * (Math.PI / 180);
-    const raan = tle.RA_OF_ASC_NODE * (Math.PI / 180);
-    const meanAnomaly = tle.MEAN_ANOMALY * (Math.PI / 180);
-    
-    // 计算半长轴
-    const a = Math.pow(398600.4418 / Math.pow(tle.MEAN_MOTION * 2 * Math.PI / 86400, 2), 1/3);
-    // 缩放到场景尺寸 (地球半径 = 1)
-    const radius = (a / 6371) * RENDER_CONFIG.earthRadius;
-    
-    // 轨道位置计算
-    const x = radius * (Math.cos(raan) * Math.cos(meanAnomaly) - Math.sin(raan) * Math.sin(meanAnomaly) * Math.cos(inclination));
-    const y = radius * Math.sin(meanAnomaly) * Math.sin(inclination);
-    const z = radius * (Math.sin(raan) * Math.cos(meanAnomaly) + Math.cos(raan) * Math.sin(meanAnomaly) * Math.cos(inclination));
-    
-    return { x, y, z };
-  }
-
-  private getColorByType(name: string): number {
-    const upperName = name.toUpperCase();
-    if (upperName.includes('STARLINK')) return 0x00ff88;  // 绿色
-    if (upperName.includes('ONEWEB')) return 0x00ffff;    // 青色
-    if (upperName.includes('GPS')) return 0x4488ff;       // 蓝色
-    if (upperName.includes('GLONASS')) return 0xff6666;   // 红色
-    if (upperName.includes('COSMOS')) return 0xff4444;    // 深红
-    if (upperName.includes('BEIDOU')) return 0xffcc00;    // 金色
-    if (upperName.includes('GALILEO')) return 0x8888ff;   // 紫色
-    if (upperName.includes('ISS')) return 0xffffff;       // 白色
-    if (upperName.includes('TIANGONG')) return 0xff8800;  // 橙色
-    if (upperName.includes('IRIDIUM')) return 0x88ff88;   // 浅绿
-    return 0xaaaaaa;  // 灰色
+  /**
+   * 计算卫星位置（带有效性验证）
+   */
+  calculatePosition(satellite: Satellite): { x: number; y: number; z: number } | null {
+    try {
+      const eci = satellite.eci();
+      if (!eci || !eci.position) return null;
+      
+      const scale = 1 / EARTH_RADIUS_KM;
+      const x = eci.position.x * scale;
+      const y = eci.position.z * scale;
+      const z = -eci.position.y * scale;
+      
+      // 过滤无效值（NaN、Infinity、距离异常）
+      if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return null;
+      
+      // 过滤距离地心太近或太远的异常点（地球半径=1）
+      const dist = Math.sqrt(x * x + y * y + z * z);
+      if (dist < 1.01 || dist > 20) return null; // 卫星应该在地球外且不超过 GEO 轨道太多
+      
+      return { x, y, z };
+    } catch {
+      return null;
+    }
   }
 
   /**
-   * 创建卫星 3D 对象
+   * 创建卫星点
    */
   createSatelliteMeshes(): THREE.Group {
+    if (this.mainGroup) return this.mainGroup;
+
     const group = new THREE.Group();
     group.name = 'Satellites';
+    this.mainGroup = group;
     
     const count = this.satellites.length;
     if (count === 0) return group;
 
     console.log(`🚀 创建 ${count} 颗卫星...`);
 
-    // 创建几何体
-    this.geometry = new THREE.BufferGeometry();
-    this.positions = new Float32Array(count * 3);
+    // 初始化位置数组
+    this.currentPositions = new Float32Array(count * 3);
+    this.targetPositions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
     const color = new THREE.Color();
     
@@ -112,88 +85,88 @@ class SatelliteService {
       const sat = this.satellites[i];
       const i3 = i * 3;
       
-      if (sat.position) {
-        this.positions[i3] = sat.position.x;
-        this.positions[i3 + 1] = sat.position.y;
-        this.positions[i3 + 2] = sat.position.z;
+      const pos = this.calculatePosition(sat.satellite);
+      if (pos) {
+        // 当前位置和目标位置初始化相同
+        this.currentPositions[i3] = pos.x;
+        this.currentPositions[i3 + 1] = pos.y;
+        this.currentPositions[i3 + 2] = pos.z;
+        this.targetPositions[i3] = pos.x;
+        this.targetPositions[i3 + 1] = pos.y;
+        this.targetPositions[i3 + 2] = pos.z;
       }
       
-      color.setHex(sat.color || 0xaaaaaa);
+      color.setHex(sat.color);
       colors[i3] = color.r;
       colors[i3 + 1] = color.g;
       colors[i3 + 2] = color.b;
     }
     
-    this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
-    this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(this.currentPositions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     
-    // 加载圆形纹理
-    const canvas = document.createElement('canvas');
-    canvas.width = 32;
-    canvas.height = 32;
-    const ctx = canvas.getContext('2d')!;
-    
-    // 绘制圆形渐变
-    const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
-    gradient.addColorStop(0, 'rgba(255,255,255,1)');
-    gradient.addColorStop(0.3, 'rgba(255,255,255,0.8)');
-    gradient.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 32, 32);
-    
-    const texture = new THREE.CanvasTexture(canvas);
-    
-    // 创建材质
     const material = new THREE.PointsMaterial({
-      size: 0.03,
-      map: texture,
+      size: 0.012,
       vertexColors: true,
       transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      opacity: 0.9,
+      sizeAttenuation: true,
     });
     
-    // 创建点云
-    this.points = new THREE.Points(this.geometry, material);
-    this.points.name = 'SatellitePoints';
-    group.add(this.points);
+    const points = new THREE.Points(geometry, material);
+    points.name = 'SatellitePoints';
+    group.add(points);
     
     console.log(`✅ 卫星创建完成`);
     return group;
   }
 
   /**
-   * 更新卫星位置（动画）
+   * 计算新的目标位置（每秒调用一次）
    */
-  updatePositions(deltaTime: number): void {
-    if (!this.geometry || !this.positions) return;
-    
-    // 根据轨道周期旋转
-    const angle = deltaTime * 0.00002;
-    const cosA = Math.cos(angle);
-    const sinA = Math.sin(angle);
-    
+  updateTargetPositions(): void {
+    if (!this.targetPositions || !this.currentPositions) return;
+
     for (let i = 0; i < this.satellites.length; i++) {
       const sat = this.satellites[i];
-      if (!sat.position) continue;
-      
+      const pos = this.calculatePosition(sat.satellite);
       const i3 = i * 3;
       
-      // 绕 Y 轴旋转
-      const x = sat.position.x;
-      const z = sat.position.z;
-      sat.position.x = x * cosA - z * sinA;
-      sat.position.z = x * sinA + z * cosA;
-      
-      this.positions[i3] = sat.position.x;
-      this.positions[i3 + 1] = sat.position.y;
-      this.positions[i3 + 2] = sat.position.z;
+      if (pos) {
+        this.targetPositions[i3] = pos.x;
+        this.targetPositions[i3 + 1] = pos.y;
+        this.targetPositions[i3 + 2] = pos.z;
+      } else {
+        // 计算失败时保持当前位置不变
+        this.targetPositions[i3] = this.currentPositions[i3];
+        this.targetPositions[i3 + 1] = this.currentPositions[i3 + 1];
+        this.targetPositions[i3 + 2] = this.currentPositions[i3 + 2];
+      }
     }
-    
-    this.geometry.attributes.position.needsUpdate = true;
   }
 
-  getSatellites(): Satellite[] {
+  /**
+   * 平滑插值到目标位置（每帧调用）
+   */
+  interpolatePositions(): void {
+    if (!this.mainGroup || !this.currentPositions || !this.targetPositions) return;
+    
+    const points = this.mainGroup.getObjectByName('SatellitePoints') as THREE.Points;
+    if (!points || !points.geometry) return;
+
+    const positions = points.geometry.attributes.position;
+    if (!positions) return;
+
+    // 插值当前位置到目标位置
+    for (let i = 0; i < this.currentPositions.length; i++) {
+      this.currentPositions[i] += (this.targetPositions[i] - this.currentPositions[i]) * this.lerp;
+    }
+    
+    positions.needsUpdate = true;
+  }
+
+  getSatellites(): SatelliteData[] {
     return this.satellites;
   }
 
@@ -202,16 +175,10 @@ class SatelliteService {
   }
 
   dispose(): void {
-    if (this.geometry) {
-      this.geometry.dispose();
-    }
-    if (this.points) {
-      const material = this.points.material as THREE.PointsMaterial;
-      material.map?.dispose();
-      material.dispose();
-    }
+    this.mainGroup = null;
     this.satellites = [];
-    spaceTrackApi.logout();
+    this.currentPositions = null;
+    this.targetPositions = null;
   }
 }
 

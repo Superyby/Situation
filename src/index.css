@@ -4,11 +4,13 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: #000;
+  background-color: #000008;
+  font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
 }
 
 #root {
@@ -30,62 +32,214 @@ html, body {
   left: 0;
 }
 
-/* UI覆盖层样式 */
+/* ============= 科幻风格 UI ============= */
 .ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.title-section {
+  position: absolute;
+  top: 30px;
+  left: 30px;
+}
+
+.title-glow {
+  position: relative;
+}
+
+.title-glow h1 {
+  font-size: 32px;
+  font-weight: 200;
+  letter-spacing: 8px;
+  color: #fff;
+  text-shadow:
+    0 0 20px rgba(68, 136, 255, 0.8),
+    0 0 40px rgba(68, 136, 255, 0.4),
+    0 0 60px rgba(68, 136, 255, 0.2);
+  margin-bottom: 8px;
+}
+
+.title-glow .subtitle {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 4px;
+  color: rgba(68, 200, 255, 0.8);
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border: 1px solid rgba(68, 200, 255, 0.3);
+  border-radius: 3px;
+  margin-left: 4px;
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+
+  0%,
+  100% {
+    border-color: rgba(68, 200, 255, 0.3);
+  }
+
+  50% {
+    border-color: rgba(68, 200, 255, 0.6);
+  }
+}
+
+.stats {
+  display: flex;
+  gap: 30px;
+  margin-top: 20px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  color: rgba(68, 200, 255, 0.6);
+  text-transform: uppercase;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 300;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  text-shadow: 0 0 10px rgba(68, 200, 255, 0.5);
+}
+
+/* 角落装饰线 */
+.ui-overlay::before {
+  content: '';
   position: absolute;
   top: 20px;
   left: 20px;
-  color: white;
-  font-family: 'Segoe UI', Arial, sans-serif;
-  z-index: 100;
+  width: 60px;
+  height: 60px;
+  border-top: 1px solid rgba(68, 200, 255, 0.3);
+  border-left: 1px solid rgba(68, 200, 255, 0.3);
   pointer-events: none;
 }
 
-.ui-overlay h1 {
-  font-size: 24px;
-  font-weight: 300;
-  margin-bottom: 10px;
-}
-
-.ui-overlay p {
-  font-size: 14px;
-  opacity: 0.7;
-}
-
-/* 控制面板样式 */
-.controls {
+.ui-overlay::after {
+  content: '';
   position: absolute;
   bottom: 20px;
-  left: 20px;
+  right: 20px;
+  width: 60px;
+  height: 60px;
+  border-bottom: 1px solid rgba(68, 200, 255, 0.3);
+  border-right: 1px solid rgba(68, 200, 255, 0.3);
+  pointer-events: none;
+}
+
+/* ============= 加载屏幕 ============= */
+.loading-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse at center, #000820 0%, #000008 100%);
   display: flex;
-  gap: 10px;
-  z-index: 100;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 30px;
+  z-index: 1000;
 }
 
-.controls button {
-  padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  cursor: pointer;
-  border-radius: 4px;
-  font-size: 14px;
-  transition: all 0.3s ease;
-  pointer-events: auto;
+.loading-spinner {
+  width: 60px;
+  height: 60px;
+  border: 2px solid transparent;
+  border-top: 2px solid rgba(68, 200, 255, 0.8);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  box-shadow:
+    0 0 20px rgba(68, 200, 255, 0.3),
+    inset 0 0 20px rgba(68, 200, 255, 0.1);
 }
 
-.controls button:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.5);
-}
-
-/* 加载动画 */
-.loading {
+.loading-spinner::before {
+  content: '';
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: white;
-  font-size: 18px;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  width: 40px;
+  height: 40px;
+  border: 2px solid transparent;
+  border-bottom: 2px solid rgba(68, 200, 255, 0.5);
+  border-radius: 50%;
+  animation: spin 1.5s linear infinite reverse;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  color: rgba(68, 200, 255, 0.9);
+  font-size: 14px;
+  font-weight: 300;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  text-align: center;
+  animation: fade-pulse 2s ease-in-out infinite;
+}
+
+.loading-text.error {
+  color: rgba(255, 100, 100, 0.9);
+}
+
+@keyframes fade-pulse {
+
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ============= 响应式 ============= */
+@media (max-width: 768px) {
+  .title-glow h1 {
+    font-size: 20px;
+    letter-spacing: 4px;
+  }
+
+  .title-glow .subtitle {
+    font-size: 9px;
+  }
+
+  .stats {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .stat-value {
+    font-size: 14px;
+  }
+
+  .title-section {
+    top: 15px;
+    left: 15px;
+  }
 }

@@ -1,247 +1,270 @@
 import { useRef, useEffect, useState } from 'react';
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { gsap } from 'gsap';
 import Earth from './Earth';
 import { satelliteService } from '../services/satellite-service';
-import { SPACE_TRACK_CREDENTIALS } from '../config/credentials';
 
 interface SceneProps {
   className?: string;
 }
 
 /**
- * Three.js 场景组件
- * 整合地球渲染和卫星可视化
+ * Three.js 场景组件 - WebGPU 版本
  */
 const Scene: React.FC<SceneProps> = ({ className }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const rendererRef = useRef<THREE.WebGPURenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const earthRef = useRef<THREE.Mesh | null>(null);
-  const satelliteGroupRef = useRef<THREE.Group | null>(null);
-  
+  const rotationGroupRef = useRef<THREE.Group | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingText, setLoadingText] = useState('初始化 WebGPU...');
   const [satelliteCount, setSatelliteCount] = useState(0);
-  
-  // 缩放控制
-  const [zoom, setZoom] = useState(3);
-  const zoomSpeed = 0.3;
-  const minZoom = 1.5;
-  const maxZoom = 20;
+  const [webgpuSupported, setWebgpuSupported] = useState(true);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // ========== 场景初始化 ==========
-    const scene = new THREE.Scene();
-    sceneRef.current = scene;
+    let renderer: THREE.WebGPURenderer | null = null;
+    let animationId: number;
+    let isDisposed = false;
 
-    // 相机
-    const camera = new THREE.PerspectiveCamera(
-      75,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      1000
-    );
-    camera.position.z = zoom;
-    cameraRef.current = camera;
+    const init = async () => {
+      if (!navigator.gpu) {
+        setWebgpuSupported(false);
+        setLoadingText('您的浏览器不支持 WebGPU');
+        return;
+      }
 
-    // 渲染器
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-    });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x000000, 1);
-    containerRef.current.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
+      // 场景
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x000008);
+      sceneRef.current = scene;
 
-    // ========== 灯光 ==========
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
-    scene.add(ambientLight);
+      // 相机
+      const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.z = 3;
+      cameraRef.current = camera;
 
-    const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
-    sunLight.position.set(5, 3, 5);
-    scene.add(sunLight);
+      // WebGPU 渲染器
+      setLoadingText('初始化 WebGPU 渲染器...');
+      renderer = new THREE.WebGPURenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      containerRef.current!.appendChild(renderer.domElement);
+      rendererRef.current = renderer;
 
-    // ========== 地球 ==========
-    const earth = Earth.create('high');
-    earthRef.current = earth;
-    scene.add(earth);
+      await renderer.init();
+      console.log('✅ WebGPU 渲染器初始化成功');
 
-    // 地球自转动画
-    gsap.to(earth.rotation, {
-      y: Math.PI * 2,
-      duration: 60,
-      repeat: -1,
-      ease: 'none',
-    });
+      // 灯光
+      scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+      const sunLight = new THREE.DirectionalLight(0xffffff, 1.8);
+      sunLight.position.set(5, 3, 5);
+      scene.add(sunLight);
 
-    // 相机入场动画
-    gsap.from(camera.position, {
-      z: 10,
-      duration: 2,
-      ease: 'power2.out',
-      onUpdate: () => setZoom(camera.position.z),
-      onComplete: () => setIsLoading(false),
-    });
+      // 旋转组
+      const rotationGroup = new THREE.Group();
+      rotationGroup.name = 'RotationGroup';
+      rotationGroupRef.current = rotationGroup;
+      scene.add(rotationGroup);
 
-    // ========== 星空背景 ==========
-    const starGeometry = new THREE.BufferGeometry();
-    const starCount = 3000;
-    const starPositions = new Float32Array(starCount * 3);
+      // 星空背景
+      rotationGroup.add(Earth.createSkybox());
 
-    for (let i = 0; i < starCount * 3; i += 3) {
-      const radius = 50 + Math.random() * 50;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      starPositions[i] = radius * Math.sin(phi) * Math.cos(theta);
-      starPositions[i + 1] = radius * Math.sin(phi) * Math.sin(theta);
-      starPositions[i + 2] = radius * Math.cos(phi);
-    }
+      // 地球
+      setLoadingText('加载地球模型...');
+      rotationGroup.add(Earth.create());
 
-    starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-    const starMaterial = new THREE.PointsMaterial({
-      color: 0xffffff,
-      size: 0.1,
-      sizeAttenuation: true,
-    });
-    const stars = new THREE.Points(starGeometry, starMaterial);
-    scene.add(stars);
+      // 云层
+      const clouds = Earth.createClouds();
+      rotationGroup.add(clouds);
 
-    // ========== 加载卫星数据 ==========
-    const loadSatellites = async () => {
+      // 云层动画
+      gsap.to(clouds.rotation, { y: Math.PI * 2, duration: 300, repeat: -1, ease: 'none' });
+
+      // 加载卫星
+      setLoadingText('从 KeepTrack API 加载卫星数据...');
       try {
-        console.log('🚀 开始加载卫星数据...');
-        
-        // 认证
-        const authSuccess = await satelliteService.initialize(
-          SPACE_TRACK_CREDENTIALS.username,
-          SPACE_TRACK_CREDENTIALS.password
-        );
+        await satelliteService.loadSatellites();
+        setSatelliteCount(satelliteService.count);
 
-        if (!authSuccess) {
-          console.error('❌ Space-Track 认证失败！请检查代理服务器是否运行');
-          return;
-        }
-
-        // 加载卫星数据 - 加载500颗（快速加载）
-        const satellites = await satelliteService.loadSatellites(500);
-        
-        if (satellites.length === 0) {
-          console.error('❌ 未获取到卫星数据');
-          return;
-        }
-        
-        setSatelliteCount(satellites.length);
-
-        // 创建3D对象
-        const satelliteGroup = satelliteService.createSatelliteMeshes();
-        satelliteGroupRef.current = satelliteGroup;
-        scene.add(satelliteGroup);
-        
-        console.log(`🛰️ 成功加载 ${satellites.length} 颗卫星到场景`);
-        
+        setLoadingText('创建卫星和轨道...');
+        rotationGroup.add(satelliteService.createSatelliteMeshes());
+        console.log(`✅ 加载 ${satelliteService.count} 颗卫星完成`);
       } catch (error) {
-        console.error('❌ 加载卫星失败:', error);
-      }
-    };
-
-    // 立即加载卫星
-    loadSatellites();
-
-    // ========== 动画循环 ==========
-    let lastTime = 0;
-    const animate = (time: number) => {
-      requestAnimationFrame(animate);
-      
-      const deltaTime = time - lastTime;
-      lastTime = time;
-      
-      // 更新卫星位置
-      if (satelliteGroupRef.current) {
-        satelliteService.updatePositions(deltaTime);
-      }
-      
-      // 渲染
-      renderer.render(scene, camera);
-    };
-    animate(0);
-
-    // ========== 事件处理 ==========
-    const handleResize = () => {
-      if (!cameraRef.current || !rendererRef.current) return;
-      cameraRef.current.aspect = window.innerWidth / window.innerHeight;
-      cameraRef.current.updateProjectionMatrix();
-      rendererRef.current.setSize(window.innerWidth, window.innerHeight);
-    };
-    window.addEventListener('resize', handleResize);
-
-    const handleMouseMove = (event: MouseEvent) => {
-      if (!cameraRef.current) return;
-      const mouseX = (event.clientX / window.innerWidth) * 2 - 1;
-      const mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
-      gsap.to(cameraRef.current.position, {
-        x: mouseX * 0.5,
-        y: mouseY * 0.5,
-        duration: 0.5,
-        ease: 'power2.out',
-      });
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-
-    const handleWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      setZoom(prev => {
-        const newZoom = prev + (event.deltaY > 0 ? zoomSpeed : -zoomSpeed);
-        return Math.max(minZoom, Math.min(maxZoom, newZoom));
-      });
-    };
-
-    const container = containerRef.current;
-    container.addEventListener('wheel', handleWheel, { passive: false });
-
-    // ========== 清理 ==========
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('mousemove', handleMouseMove);
-      container.removeEventListener('wheel', handleWheel);
-
-      if (containerRef.current && rendererRef.current) {
-        containerRef.current.removeChild(rendererRef.current.domElement);
+        console.error('加载卫星失败:', error);
       }
 
-      renderer.dispose();
-      gsap.killTweensOf(earth.rotation);
-      gsap.killTweensOf(camera.position);
-      
-      satelliteService.dispose();
+      setIsLoading(false);
+
+      // 鼠标交互 - 丝滑版本
+      let isDragging = false;
+      let prevX = 0, prevY = 0;
+      let targetRotY = 0, targetRotX = 0;
+      let velX = 0, velY = 0;
+
+      // 初始化目标旋转值
+      if (rotationGroupRef.current) {
+        targetRotY = rotationGroupRef.current.rotation.y;
+        targetRotX = rotationGroupRef.current.rotation.x;
+      }
+
+      const onMouseDown = (e: MouseEvent) => {
+        isDragging = true;
+        prevX = e.clientX;
+        prevY = e.clientY;
+        document.body.style.cursor = 'grabbing';
+      };
+
+      const onMouseMove = (e: MouseEvent) => {
+        if (!isDragging) return;
+        const dx = e.clientX - prevX;
+        const dy = e.clientY - prevY;
+
+        // 累加到目标旋转值
+        targetRotY += dx * 0.004;
+        targetRotX += dy * 0.004;
+        targetRotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, targetRotX));
+
+        // 记录速度用于惯性
+        velX = dx * 0.004;
+        velY = dy * 0.004;
+
+        prevX = e.clientX;
+        prevY = e.clientY;
+      };
+
+      const onMouseUp = () => {
+        isDragging = false;
+        document.body.style.cursor = 'grab';
+      };
+
+      const onWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        if (!cameraRef.current) return;
+        const z = Math.max(1.5, Math.min(12, cameraRef.current.position.z + e.deltaY * 0.003));
+        gsap.to(cameraRef.current.position, { z, duration: 0.3, ease: 'power2.out' });
+      };
+
+      const container = containerRef.current!;
+      container.style.cursor = 'grab';
+      container.addEventListener('mousedown', onMouseDown);
+      container.addEventListener('mousemove', onMouseMove);
+      container.addEventListener('mouseup', onMouseUp);
+      container.addEventListener('mouseleave', onMouseUp);
+      container.addEventListener('wheel', onWheel, { passive: false });
+
+      const handleResize = () => {
+        if (!cameraRef.current || !rendererRef.current) return;
+        cameraRef.current.aspect = window.innerWidth / window.innerHeight;
+        cameraRef.current.updateProjectionMatrix();
+        rendererRef.current.setSize(window.innerWidth, window.innerHeight);
+      };
+      window.addEventListener('resize', handleResize);
+
+      // 动画循环 - 丝滑插值
+      let lastUpdate = 0;
+      const lerp = 0.08; // 插值系数，越小越丝滑
+
+      const animate = () => {
+        if (isDisposed) return;
+        animationId = requestAnimationFrame(animate);
+
+        if (rotationGroupRef.current) {
+          // 惯性旋转（松开鼠标后继续滚动）
+          if (!isDragging) {
+            velX *= 0.98; // 更小的阻尼，惯性更长
+            velY *= 0.98;
+            if (Math.abs(velX) > 0.00005) targetRotY += velX;
+            if (Math.abs(velY) > 0.00005) {
+              targetRotX += velY;
+              targetRotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, targetRotX));
+            }
+          }
+
+          // 平滑插值到目标旋转（这是丝滑的关键）
+          rotationGroupRef.current.rotation.y += (targetRotY - rotationGroupRef.current.rotation.y) * lerp;
+          rotationGroupRef.current.rotation.x += (targetRotX - rotationGroupRef.current.rotation.x) * lerp;
+        }
+
+        // 每帧插值卫星位置（丝滑移动）
+        satelliteService.interpolatePositions();
+
+        // 每秒计算新目标位置
+        const now = Date.now();
+        if (now - lastUpdate > 1000) {
+          satelliteService.updateTargetPositions();
+          lastUpdate = now;
+        }
+
+        renderer!.render(scene, camera);
+      };
+      animate();
+
+      // 清理函数
+      return () => {
+        isDisposed = true;
+        cancelAnimationFrame(animationId);
+        window.removeEventListener('resize', handleResize);
+        container.removeEventListener('mousedown', onMouseDown);
+        container.removeEventListener('mousemove', onMouseMove);
+        container.removeEventListener('mouseup', onMouseUp);
+        container.removeEventListener('mouseleave', onMouseUp);
+        container.removeEventListener('wheel', onWheel);
+        if (renderer && container.contains(renderer.domElement)) {
+          container.removeChild(renderer.domElement);
+        }
+        // 不调用 dispose，避免 WebGPU bug
+        satelliteService.dispose();
+      };
     };
+
+    const cleanup = init();
+    return () => { cleanup.then(fn => fn?.()); };
   }, []);
-
-  // 监听zoom变化更新相机
-  useEffect(() => {
-    if (cameraRef.current) {
-      cameraRef.current.position.z = zoom;
-      cameraRef.current.lookAt(0, 0, 0);
-    }
-  }, [zoom]);
 
   return (
     <div className={`scene-container ${className || ''}`}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
-      {/* UI覆盖层 */}
       <div className="ui-overlay">
-        <h1>Satellite Tracker</h1>
-        <p>卫星数量: {satelliteCount}</p>
+        <div className="title-section">
+          <div className="title-glow">
+            <h1>ORBITAL TRACKER</h1>
+            <span className="subtitle">WebGPU Powered</span>
+          </div>
+          <div className="stats">
+            <div className="stat-item">
+              <span className="stat-label">SATELLITES</span>
+              <span className="stat-value">{satelliteCount}</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">DATA SOURCE</span>
+              <span className="stat-value">KeepTrack API</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">PREDICTION</span>
+              <span className="stat-value">24H</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {isLoading && (
-        <div className="loading">
-          加载中...
+        <div className="loading-screen">
+          <div className="loading-spinner"></div>
+          <div className="loading-text">{loadingText}</div>
+        </div>
+      )}
+
+      {!webgpuSupported && !isLoading && (
+        <div className="loading-screen">
+          <div className="loading-text error">
+            您的浏览器不支持 WebGPU<br />
+            请使用最新版 Chrome、Edge 或 Firefox
+          </div>
         </div>
       )}
     </div>
