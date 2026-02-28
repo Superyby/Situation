@@ -7,6 +7,6 @@ node_modules
 .DS_Store
 
 # 敏感配置文件
-src/config/credentials.ts
+# src/config/credentials.ts
 .env
 .env.local
