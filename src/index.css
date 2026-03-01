@@ -54,14 +54,13 @@ body {
 }
 
 .title-glow h1 {
-  font-size: 32px;
-  font-weight: 200;
-  letter-spacing: 8px;
+  font-size: 28px;
+  font-weight: 300;
+  letter-spacing: 12px;
   color: #fff;
   text-shadow:
     0 0 20px rgba(68, 136, 255, 0.8),
-    0 0 40px rgba(68, 136, 255, 0.4),
-    0 0 60px rgba(68, 136, 255, 0.2);
+    0 0 40px rgba(68, 136, 255, 0.4);
   margin-bottom: 8px;
 }
 
@@ -112,11 +111,17 @@ body {
 }
 
 .stat-value {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 300;
   color: #fff;
   font-family: 'Courier New', monospace;
   text-shadow: 0 0 10px rgba(68, 200, 255, 0.5);
+}
+
+.stat-value.time {
+  font-size: 14px;
+  color: rgba(68, 255, 180, 0.9);
+  letter-spacing: 1px;
 }
 
 /* 角落装饰线 */
@@ -242,4 +247,209 @@ body {
     top: 15px;
     left: 15px;
   }
+}
+
+/* ============= 卫星信息面板 ============= */
+.satellite-panel {
+  position: absolute;
+  bottom: 30px;
+  left: 30px;
+  background: rgba(0, 10, 30, 0.9);
+  border: 1px solid rgba(68, 200, 255, 0.4);
+  border-radius: 8px;
+  min-width: 280px;
+  z-index: 200;
+  backdrop-filter: blur(10px);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(68, 200, 255, 0.2);
+}
+
+.panel-header span {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 1px;
+}
+
+.panel-header button {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  transition: color 0.2s;
+}
+
+.panel-header button:hover {
+  color: #fff;
+}
+
+.panel-body {
+  padding: 12px 16px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(68, 200, 255, 0.1);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  color: rgba(68, 200, 255, 0.7);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.info-value {
+  color: #fff;
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+}
+
+/* ============= 系统状态指示器 ============= */
+.status-indicator {
+  position: absolute;
+  bottom: 30px;
+  right: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(0, 20, 40, 0.6);
+  border: 1px solid rgba(68, 255, 120, 0.3);
+  border-radius: 4px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: rgba(68, 255, 120, 0.9);
+  border-radius: 50%;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.6; box-shadow: 0 0 4px rgba(68, 255, 120, 0.5); }
+  50% { opacity: 1; box-shadow: 0 0 12px rgba(68, 255, 120, 0.8); }
+}
+
+.status-text {
+  font-size: 11px;
+  color: rgba(68, 255, 120, 0.9);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* ============= 搜索框 ============= */
+.search-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 300;
+  width: 400px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  background: rgba(0, 10, 30, 0.95);
+  border: 1px solid rgba(68, 200, 255, 0.5);
+  border-radius: 8px;
+  padding: 12px 16px;
+  backdrop-filter: blur(10px);
+}
+
+.search-box input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+.search-box input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.search-hint {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.search-results {
+  margin-top: 8px;
+  background: rgba(0, 10, 30, 0.95);
+  border: 1px solid rgba(68, 200, 255, 0.3);
+  border-radius: 8px;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+.search-result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid rgba(68, 200, 255, 0.1);
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.search-result-item:hover {
+  background: rgba(68, 200, 255, 0.15);
+}
+
+.result-name {
+  color: #fff;
+  font-size: 13px;
+}
+
+.result-id {
+  color: rgba(68, 200, 255, 0.7);
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+}
+
+/* ============= 快捷键提示 ============= */
+.shortcut-hint {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+}
+
+.shortcut-hint kbd {
+  display: inline-block;
+  padding: 2px 8px;
+  margin: 0 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
 }

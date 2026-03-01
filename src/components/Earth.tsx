@@ -18,7 +18,7 @@ class Earth {
   static create(scene: Scene): Mesh {
     const earth = MeshBuilder.CreateSphere('Earth', {
       diameter: 2,
-      segments: 128,
+      segments: 64,  // 降低分段数减少GPU负载
     }, scene);
 
     const material = new StandardMaterial('earthMat', scene);
@@ -38,7 +38,7 @@ class Earth {
   static createSkybox(scene: Scene): Mesh {
     const skybox = MeshBuilder.CreateSphere('Skybox', {
       diameter: 200,
-      segments: 64,
+      segments: 32,  // 降低分段数
     }, scene);
 
     // 翻转使内部可见

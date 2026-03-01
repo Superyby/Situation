@@ -1,6 +1,8 @@
-import { PointsCloudSystem, Scene, Color4, Vector3 } from '@babylonjs/core';
+import { PointsCloudSystem, Scene, Color4, Vector3, CloudPoint } from '@babylonjs/core';
 import { Satellite } from 'ootk';
 import { keepTrackApi, SatelliteData } from '../api/keeptrack';
+
+export type { SatelliteData };
 
 const EARTH_RADIUS_KM = 6371;
 
@@ -13,7 +15,8 @@ class SatelliteService {
   private scene: Scene | null = null;
   private currentPositions: Float32Array | null = null;
   private targetPositions: Float32Array | null = null;
-  private readonly lerp = 0.05;
+  private readonly lerp = 0.1;
+  private frameCount = 0;  // 用于控制更新频率
 
   /**
    * 加载全部卫星数据
@@ -21,7 +24,7 @@ class SatelliteService {
   async loadSatellites(): Promise<SatelliteData[]> {
     console.log('🛰️ 正在加载卫星数据...');
 
-    const rawData = await keepTrackApi.getPopularSatellites(20000, false);
+    const rawData = await keepTrackApi.getPopularSatellites(5000, false);  // 限制数量保证流畅
 
     this.satellites = [];
     for (const data of rawData) {
@@ -36,7 +39,7 @@ class SatelliteService {
   }
 
   /**
-   * 计算卫星位置（带有效性验证）
+   * 计算卫星位置（带有效性验证）- 公开方法
    */
   calculatePosition(satellite: Satellite): { x: number; y: number; z: number } | null {
     try {
@@ -81,7 +84,7 @@ class SatelliteService {
     const pcs = new PointsCloudSystem('satellites', 1, scene, { updatable: true });
 
     // 添加所有点
-    pcs.addPoints(count, (particle, i) => {
+    pcs.addPoints(count, (particle: CloudPoint, i: number) => {
       const sat = this.satellites[i];
       const pos = this.calculatePosition(sat.satellite);
       const i3 = i * 3;
@@ -104,9 +107,8 @@ class SatelliteService {
         this.targetPositions![i3 + 2] = 0;
       }
 
-      // 设置颜色
-      const hexColor = sat.color.toString(16).padStart(6, '0');
-      particle.color = Color4.FromHexString('#' + hexColor + 'E6');
+      // 设置颜色 - 统一使用柔和的青绿色
+      particle.color = new Color4(0.3, 0.9, 0.7, 0.85);
     });
 
     // 构建网格
@@ -114,7 +116,8 @@ class SatelliteService {
 
     // 设置点大小
     if (pcs.mesh) {
-      pcs.mesh.material!.pointSize = 2;
+      pcs.mesh.material!.pointSize = 5;
+      pcs.mesh.isPickable = true;  // 启用拾取
     }
 
     this.pcs = pcs;
@@ -147,24 +150,26 @@ class SatelliteService {
   }
 
   /**
-   * 平滑插值到目标位置（每帧调用）
+   * 平滑插值到目标位置（每帧调用，但降低更新频率）
    */
   interpolatePositions(): void {
     if (!this.pcs || !this.currentPositions || !this.targetPositions) return;
 
+    // 每 5 帧更新一次，减少 GPU 负载
+    this.frameCount++;
+    if (this.frameCount % 5 !== 0) return;
+
+    // 直接更新位置数组
+    for (let i = 0; i < this.currentPositions.length; i++) {
+      this.currentPositions[i] += (this.targetPositions[i] - this.currentPositions[i]) * this.lerp;
+    }
+
     // 更新粒子位置
     this.pcs.updateParticle = (particle) => {
       const i3 = particle.idx * 3;
-
-      // 插值当前位置到目标位置
-      this.currentPositions![i3] += (this.targetPositions![i3] - this.currentPositions![i3]) * this.lerp;
-      this.currentPositions![i3 + 1] += (this.targetPositions![i3 + 1] - this.currentPositions![i3 + 1]) * this.lerp;
-      this.currentPositions![i3 + 2] += (this.targetPositions![i3 + 2] - this.currentPositions![i3 + 2]) * this.lerp;
-
       particle.position.x = this.currentPositions![i3];
       particle.position.y = this.currentPositions![i3 + 1];
       particle.position.z = this.currentPositions![i3 + 2];
-
       return particle;
     };
 
@@ -173,6 +178,66 @@ class SatelliteService {
 
   getSatellites(): SatelliteData[] {
     return this.satellites;
+  }
+
+  /**
+   * 获取卫星详细信息（高度、速度、周期）
+   */
+  getSatelliteDetails(satellite: Satellite): { altitude: number; velocity: number; period: number } | null {
+    try {
+      const eci = satellite.eci();
+      if (!eci || !eci.position || !eci.velocity) return null;
+
+      // 计算高度 (km) - 距离地心距离减去地球半径
+      const r = Math.sqrt(
+        eci.position.x ** 2 + eci.position.y ** 2 + eci.position.z ** 2
+      );
+      const altitude = r - EARTH_RADIUS_KM;
+
+      // 计算速度 (km/s)
+      const velocity = Math.sqrt(
+        eci.velocity.x ** 2 + eci.velocity.y ** 2 + eci.velocity.z ** 2
+      );
+
+      // 计算轨道周期 (分钟) - 简化计算
+      const period = (2 * Math.PI * r) / velocity / 60;
+
+      return {
+        altitude: Math.round(altitude),
+        velocity: Math.round(velocity * 100) / 100,
+        period: Math.round(period * 10) / 10
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 根据索引获取单颗卫星数据
+   */
+  getSatelliteByIndex(index: number): SatelliteData | null {
+    if (index >= 0 && index < this.satellites.length) {
+      return this.satellites[index];
+    }
+    return null;
+  }
+
+  /**
+   * 获取点云mesh
+   */
+  getMesh() {
+    return this.pcs?.mesh || null;
+  }
+
+  /**
+   * 搜索卫星
+   */
+  searchSatellites(query: string): SatelliteData[] {
+    const q = query.toLowerCase();
+    return this.satellites.filter(sat => 
+      sat.name.toLowerCase().includes(q) || 
+      sat.id.toString().includes(q)
+    );
   }
 
   get count(): number {
