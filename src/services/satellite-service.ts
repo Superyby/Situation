@@ -1,27 +1,28 @@
-import * as THREE from 'three/webgpu';
+import { PointsCloudSystem, Scene, Color4, Vector3 } from '@babylonjs/core';
 import { Satellite } from 'ootk';
 import { keepTrackApi, SatelliteData } from '../api/keeptrack';
 
 const EARTH_RADIUS_KM = 6371;
 
 /**
- * 卫星服务 - 丝滑版
+ * 卫星服务 - Babylon.js PointsCloudSystem 版本
  */
 class SatelliteService {
   private satellites: SatelliteData[] = [];
-  private mainGroup: THREE.Group | null = null;
+  private pcs: PointsCloudSystem | null = null;
+  private scene: Scene | null = null;
   private currentPositions: Float32Array | null = null;
   private targetPositions: Float32Array | null = null;
-  private readonly lerp = 0.05; // 插值系数
+  private readonly lerp = 0.05;
 
   /**
    * 加载全部卫星数据
    */
   async loadSatellites(): Promise<SatelliteData[]> {
     console.log('🛰️ 正在加载卫星数据...');
-    
+
     const rawData = await keepTrackApi.getPopularSatellites(20000, false);
-    
+
     this.satellites = [];
     for (const data of rawData) {
       const satData = keepTrackApi.convertToSatelliteData(data);
@@ -29,7 +30,7 @@ class SatelliteService {
         this.satellites.push(satData);
       }
     }
-    
+
     console.log(`✅ 成功加载 ${this.satellites.length} 颗卫星`);
     return this.satellites;
   }
@@ -41,19 +42,19 @@ class SatelliteService {
     try {
       const eci = satellite.eci();
       if (!eci || !eci.position) return null;
-      
+
       const scale = 1 / EARTH_RADIUS_KM;
       const x = eci.position.x * scale;
       const y = eci.position.z * scale;
       const z = -eci.position.y * scale;
-      
-      // 过滤无效值（NaN、Infinity、距离异常）
+
+      // 过滤无效值
       if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return null;
-      
-      // 过滤距离地心太近或太远的异常点（地球半径=1）
+
+      // 过滤距离地心太近或太远的异常点
       const dist = Math.sqrt(x * x + y * y + z * z);
-      if (dist < 1.01 || dist > 20) return null; // 卫星应该在地球外且不超过 GEO 轨道太多
-      
+      if (dist < 1.01 || dist > 20) return null;
+
       return { x, y, z };
     } catch {
       return null;
@@ -61,65 +62,64 @@ class SatelliteService {
   }
 
   /**
-   * 创建卫星点
+   * 创建卫星点云 - 使用 PointsCloudSystem
    */
-  createSatelliteMeshes(): THREE.Group {
-    if (this.mainGroup) return this.mainGroup;
+  async createSatelliteMeshes(scene: Scene): Promise<PointsCloudSystem | null> {
+    if (this.pcs) return this.pcs;
 
-    const group = new THREE.Group();
-    group.name = 'Satellites';
-    this.mainGroup = group;
-    
+    this.scene = scene;
     const count = this.satellites.length;
-    if (count === 0) return group;
+    if (count === 0) return null;
 
-    console.log(`🚀 创建 ${count} 颗卫星...`);
+    console.log(`🚀 创建 ${count} 颗卫星点云...`);
 
     // 初始化位置数组
     this.currentPositions = new Float32Array(count * 3);
     this.targetPositions = new Float32Array(count * 3);
-    const colors = new Float32Array(count * 3);
-    const color = new THREE.Color();
-    
-    for (let i = 0; i < count; i++) {
+
+    // 创建 PointsCloudSystem
+    const pcs = new PointsCloudSystem('satellites', 1, scene, { updatable: true });
+
+    // 添加所有点
+    pcs.addPoints(count, (particle, i) => {
       const sat = this.satellites[i];
-      const i3 = i * 3;
-      
       const pos = this.calculatePosition(sat.satellite);
+      const i3 = i * 3;
+
       if (pos) {
-        // 当前位置和目标位置初始化相同
-        this.currentPositions[i3] = pos.x;
-        this.currentPositions[i3 + 1] = pos.y;
-        this.currentPositions[i3 + 2] = pos.z;
-        this.targetPositions[i3] = pos.x;
-        this.targetPositions[i3 + 1] = pos.y;
-        this.targetPositions[i3 + 2] = pos.z;
+        particle.position = new Vector3(pos.x, pos.y, pos.z);
+        this.currentPositions![i3] = pos.x;
+        this.currentPositions![i3 + 1] = pos.y;
+        this.currentPositions![i3 + 2] = pos.z;
+        this.targetPositions![i3] = pos.x;
+        this.targetPositions![i3 + 1] = pos.y;
+        this.targetPositions![i3 + 2] = pos.z;
+      } else {
+        particle.position = new Vector3(0, 0, 0);
+        this.currentPositions![i3] = 0;
+        this.currentPositions![i3 + 1] = 0;
+        this.currentPositions![i3 + 2] = 0;
+        this.targetPositions![i3] = 0;
+        this.targetPositions![i3 + 1] = 0;
+        this.targetPositions![i3 + 2] = 0;
       }
-      
-      color.setHex(sat.color);
-      colors[i3] = color.r;
-      colors[i3 + 1] = color.g;
-      colors[i3 + 2] = color.b;
-    }
-    
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(this.currentPositions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    
-    const material = new THREE.PointsMaterial({
-      size: 0.012,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.9,
-      sizeAttenuation: true,
+
+      // 设置颜色
+      const hexColor = sat.color.toString(16).padStart(6, '0');
+      particle.color = Color4.FromHexString('#' + hexColor + 'E6');
     });
-    
-    const points = new THREE.Points(geometry, material);
-    points.name = 'SatellitePoints';
-    group.add(points);
-    
-    console.log(`✅ 卫星创建完成`);
-    return group;
+
+    // 构建网格
+    await pcs.buildMeshAsync();
+
+    // 设置点大小
+    if (pcs.mesh) {
+      pcs.mesh.material!.pointSize = 2;
+    }
+
+    this.pcs = pcs;
+    console.log(`✅ 卫星点云创建完成`);
+    return pcs;
   }
 
   /**
@@ -132,7 +132,7 @@ class SatelliteService {
       const sat = this.satellites[i];
       const pos = this.calculatePosition(sat.satellite);
       const i3 = i * 3;
-      
+
       if (pos) {
         this.targetPositions[i3] = pos.x;
         this.targetPositions[i3 + 1] = pos.y;
@@ -150,20 +150,25 @@ class SatelliteService {
    * 平滑插值到目标位置（每帧调用）
    */
   interpolatePositions(): void {
-    if (!this.mainGroup || !this.currentPositions || !this.targetPositions) return;
-    
-    const points = this.mainGroup.getObjectByName('SatellitePoints') as THREE.Points;
-    if (!points || !points.geometry) return;
+    if (!this.pcs || !this.currentPositions || !this.targetPositions) return;
 
-    const positions = points.geometry.attributes.position;
-    if (!positions) return;
+    // 更新粒子位置
+    this.pcs.updateParticle = (particle) => {
+      const i3 = particle.idx * 3;
 
-    // 插值当前位置到目标位置
-    for (let i = 0; i < this.currentPositions.length; i++) {
-      this.currentPositions[i] += (this.targetPositions[i] - this.currentPositions[i]) * this.lerp;
-    }
-    
-    positions.needsUpdate = true;
+      // 插值当前位置到目标位置
+      this.currentPositions![i3] += (this.targetPositions![i3] - this.currentPositions![i3]) * this.lerp;
+      this.currentPositions![i3 + 1] += (this.targetPositions![i3 + 1] - this.currentPositions![i3 + 1]) * this.lerp;
+      this.currentPositions![i3 + 2] += (this.targetPositions![i3 + 2] - this.currentPositions![i3 + 2]) * this.lerp;
+
+      particle.position.x = this.currentPositions![i3];
+      particle.position.y = this.currentPositions![i3 + 1];
+      particle.position.z = this.currentPositions![i3 + 2];
+
+      return particle;
+    };
+
+    this.pcs.setParticles();
   }
 
   getSatellites(): SatelliteData[] {
@@ -175,7 +180,11 @@ class SatelliteService {
   }
 
   dispose(): void {
-    this.mainGroup = null;
+    if (this.pcs) {
+      this.pcs.dispose();
+      this.pcs = null;
+    }
+    this.scene = null;
     this.satellites = [];
     this.currentPositions = null;
     this.targetPositions = null;

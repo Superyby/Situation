@@ -131,7 +131,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'three': ['three'],
+          'babylon': ['@babylonjs/core'],
           'gsap': ['gsap'],
           'react-vendor': ['react', 'react-dom'],
         },

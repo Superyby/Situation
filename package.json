@@ -1,8 +1,8 @@
 {
-  "name": "three-react-starter",
-  "version": "1.0.0",
+  "name": "babylon-react-starter",
+  "version": "2.0.0",
   "type": "module",
-  "description": "React + Three.js + GSAP 3D可视化学习项目",
+  "description": "React + Babylon.js WebGPU + GSAP 3D可视化项目",
   "author": "",
   "license": "MIT",
   "scripts": {
@@ -13,15 +13,16 @@
     "start": "vite preview --port 5544"
   },
   "dependencies": {
+    "@babylonjs/core": "^7.52.4",
     "axios": "^1.7.9",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "gsap": "^3.14.2",
     "ootk": "^5.1.1",
+    "pnpm": "^10.30.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "satellite.js": "^6.0.2",
-    "three": "^0.182.0"
+    "satellite.js": "^6.0.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
@@ -29,7 +30,6 @@
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@types/three": "^0.182.0",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.9.3",
     "vite": "^7.0.0-beta.2"

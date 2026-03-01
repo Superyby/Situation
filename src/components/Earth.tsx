@@ -1,4 +1,4 @@
-import * as THREE from 'three/webgpu';
+import { MeshBuilder, PBRMaterial, StandardMaterial, Texture, Scene, Mesh, Color3 } from '@babylonjs/core';
 
 /**
  * 地球纹理配置
@@ -10,88 +10,87 @@ export const EARTH_TEXTURES = {
 };
 
 /**
- * 地球模型 - WebGPU 兼容版本
+ * 地球模型 - Babylon.js WebGPU 版本
  */
 class Earth {
   /**
-   * 创建地球 - 使用 MeshStandardMaterial
+   * 创建地球 - 使用 PBRMaterial
    */
-  static create(): THREE.Mesh {
-    const geometry = new THREE.SphereGeometry(1, 128, 128);
-    const textureLoader = new THREE.TextureLoader();
+  static create(scene: Scene): Mesh {
+    const earth = MeshBuilder.CreateSphere('Earth', {
+      diameter: 2,
+      segments: 128,
+    }, scene);
 
-    const earthTexture = textureLoader.load(EARTH_TEXTURES.dayMap);
-    earthTexture.anisotropy = 16;
-    earthTexture.colorSpace = THREE.SRGBColorSpace;
+    const material = new PBRMaterial('earthMat', scene);
+    material.albedoTexture = new Texture(EARTH_TEXTURES.dayMap, scene);
+    material.roughness = 0.8;
+    material.metallic = 0.1;
+    earth.material = material;
 
-    // WebGPU 兼容的 MeshStandardMaterial
-    const material = new THREE.MeshStandardMaterial({
-      map: earthTexture,
-      roughness: 0.8,
-      metalness: 0.1,
-    });
-
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.name = 'Earth';
-    return mesh;
+    return earth;
   }
 
   /**
    * 创建云层
    */
-  static createClouds(): THREE.Mesh {
-    const geometry = new THREE.SphereGeometry(1.008, 64, 64);
-    const textureLoader = new THREE.TextureLoader();
-    const cloudTexture = textureLoader.load(EARTH_TEXTURES.clouds);
+  static createClouds(scene: Scene): Mesh {
+    const clouds = MeshBuilder.CreateSphere('Clouds', {
+      diameter: 2.016,
+      segments: 64,
+    }, scene);
 
-    // WebGPU 兼容的 MeshBasicMaterial
-    const material = new THREE.MeshBasicMaterial({
-      map: cloudTexture,
-      transparent: true,
-      opacity: 0.35,
-      depthWrite: false,
-    });
+    const material = new StandardMaterial('cloudMat', scene);
+    material.diffuseTexture = new Texture(EARTH_TEXTURES.clouds, scene);
+    material.opacityTexture = material.diffuseTexture;
+    material.useAlphaFromDiffuseTexture = true;
+    material.alpha = 0.35;
+    material.backFaceCulling = false;
+    clouds.material = material;
 
-    const clouds = new THREE.Mesh(geometry, material);
-    clouds.name = 'Clouds';
     return clouds;
   }
 
   /**
    * 创建大气层光晕效果
    */
-  static createAtmosphere(): THREE.Mesh {
-    const geometry = new THREE.SphereGeometry(1.15, 64, 64);
+  static createAtmosphere(scene: Scene): Mesh {
+    const atmosphere = MeshBuilder.CreateSphere('Atmosphere', {
+      diameter: 2.3,
+      segments: 64,
+    }, scene);
 
-    const material = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(0x4488ff),
-      transparent: true,
-      opacity: 0.15,
-      side: THREE.BackSide,
-      depthWrite: false,
-    });
+    const material = new StandardMaterial('atmosphereMat', scene);
+    material.emissiveColor = new Color3(0.27, 0.53, 1);
+    material.alpha = 0.15;
+    material.backFaceCulling = true;
+    atmosphere.material = material;
 
-    const atmosphere = new THREE.Mesh(geometry, material);
-    atmosphere.name = 'Atmosphere';
+    // 翻转法线使其从内部可见
+    atmosphere.scaling.x = -1;
+
     return atmosphere;
   }
 
   /**
    * 创建星空背景
    */
-  static createSkybox(): THREE.Mesh {
-    const geometry = new THREE.SphereGeometry(100, 64, 64);
-    const textureLoader = new THREE.TextureLoader();
-    const texture = textureLoader.load(EARTH_TEXTURES.skybox);
-    texture.colorSpace = THREE.SRGBColorSpace;
+  static createSkybox(scene: Scene): Mesh {
+    const skybox = MeshBuilder.CreateSphere('Skybox', {
+      diameter: 200,
+      segments: 64,
+    }, scene);
 
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      side: THREE.BackSide,
-    });
+    // 翻转使内部可见
+    skybox.scaling.x = -1;
 
-    const skybox = new THREE.Mesh(geometry, material);
-    skybox.name = 'Skybox';
+    const material = new StandardMaterial('skyMat', scene);
+    material.diffuseTexture = new Texture(EARTH_TEXTURES.skybox, scene);
+    material.emissiveTexture = material.diffuseTexture;
+    material.disableLighting = true;
+    material.backFaceCulling = false;
+    skybox.material = material;
+
     return skybox;
   }
 }
