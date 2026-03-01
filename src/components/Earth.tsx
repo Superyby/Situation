@@ -1,11 +1,10 @@
-import { MeshBuilder, PBRMaterial, StandardMaterial, Texture, Scene, Mesh, Color3 } from '@babylonjs/core';
+import { MeshBuilder, StandardMaterial, Texture, Scene, Mesh } from '@babylonjs/core';
 
 /**
  * 地球纹理配置
  */
 export const EARTH_TEXTURES = {
   dayMap: '/textures/earth.jpg',
-  clouds: '/textures/clouds4k.jpg',
   skybox: '/textures/skybox8k.jpg',
 };
 
@@ -14,7 +13,7 @@ export const EARTH_TEXTURES = {
  */
 class Earth {
   /**
-   * 创建地球 - 使用 PBRMaterial
+   * 创建地球
    */
   static create(scene: Scene): Mesh {
     const earth = MeshBuilder.CreateSphere('Earth', {
@@ -22,54 +21,15 @@ class Earth {
       segments: 128,
     }, scene);
 
-    const material = new PBRMaterial('earthMat', scene);
-    material.albedoTexture = new Texture(EARTH_TEXTURES.dayMap, scene);
-    material.roughness = 0.8;
-    material.metallic = 0.1;
+    const material = new StandardMaterial('earthMat', scene);
+    const texture = new Texture(EARTH_TEXTURES.dayMap, scene);
+    texture.uScale = -1;
+    texture.vScale = -1;
+    material.emissiveTexture = texture;  // 纯贴图
+    material.disableLighting = true;     // 禁用光照
     earth.material = material;
 
     return earth;
-  }
-
-  /**
-   * 创建云层
-   */
-  static createClouds(scene: Scene): Mesh {
-    const clouds = MeshBuilder.CreateSphere('Clouds', {
-      diameter: 2.016,
-      segments: 64,
-    }, scene);
-
-    const material = new StandardMaterial('cloudMat', scene);
-    material.diffuseTexture = new Texture(EARTH_TEXTURES.clouds, scene);
-    material.opacityTexture = material.diffuseTexture;
-    material.useAlphaFromDiffuseTexture = true;
-    material.alpha = 0.35;
-    material.backFaceCulling = false;
-    clouds.material = material;
-
-    return clouds;
-  }
-
-  /**
-   * 创建大气层光晕效果
-   */
-  static createAtmosphere(scene: Scene): Mesh {
-    const atmosphere = MeshBuilder.CreateSphere('Atmosphere', {
-      diameter: 2.3,
-      segments: 64,
-    }, scene);
-
-    const material = new StandardMaterial('atmosphereMat', scene);
-    material.emissiveColor = new Color3(0.27, 0.53, 1);
-    material.alpha = 0.15;
-    material.backFaceCulling = true;
-    atmosphere.material = material;
-
-    // 翻转法线使其从内部可见
-    atmosphere.scaling.x = -1;
-
-    return atmosphere;
   }
 
   /**

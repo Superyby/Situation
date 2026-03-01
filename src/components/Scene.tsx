@@ -1,7 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { Scene, ArcRotateCamera, HemisphericLight, DirectionalLight, Vector3, Color3, Color4 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine';
-import { gsap } from 'gsap';
 import Earth from './Earth';
 import { satelliteService } from '../services/satellite-service';
 
@@ -62,8 +61,8 @@ const SceneComponent: React.FC<SceneProps> = ({ className }) => {
       );
       camera.attachControl(canvasRef.current!, true);
       camera.wheelPrecision = 50;
-      camera.lowerRadiusLimit = 1.5;
-      camera.upperRadiusLimit = 12;
+      camera.lowerRadiusLimit = 2.2;  // 地球半径1，保持安全距离
+      camera.upperRadiusLimit = 15;
       camera.panningSensibility = 0; // 禁用平移
       camera.inertia = 0.9; // 惯性
 
@@ -83,17 +82,6 @@ const SceneComponent: React.FC<SceneProps> = ({ className }) => {
       // 地球
       setLoadingText('加载地球模型...');
       Earth.create(scene);
-
-      // 云层
-      const clouds = Earth.createClouds(scene);
-
-      // 云层动画
-      gsap.to(clouds.rotation, {
-        y: Math.PI * 2,
-        duration: 300,
-        repeat: -1,
-        ease: 'none',
-      });
 
       // 加载卫星
       setLoadingText('从 KeepTrack API 加载卫星数据...');
