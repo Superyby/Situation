@@ -1,4 +1,4 @@
-import { PointsCloudSystem, Scene, Color4, Vector3, CloudPoint } from '@babylonjs/core';
+import { PointsCloudSystem, Color4, Vector3, CloudPoint, type Scene } from '@babylonjs/core';
 import { Satellite } from 'ootk';
 import { keepTrackApi, SatelliteData } from '../api/keeptrack';
 
@@ -12,7 +12,6 @@ const EARTH_RADIUS_KM = 6371;
 class SatelliteService {
   private satellites: SatelliteData[] = [];
   private pcs: PointsCloudSystem | null = null;
-  private scene: Scene | null = null;
   private currentPositions: Float32Array | null = null;
   private targetPositions: Float32Array | null = null;
   private readonly lerp = 0.1;
@@ -69,8 +68,6 @@ class SatelliteService {
    */
   async createSatelliteMeshes(scene: Scene): Promise<PointsCloudSystem | null> {
     if (this.pcs) return this.pcs;
-
-    this.scene = scene;
     const count = this.satellites.length;
     if (count === 0) return null;
 
@@ -249,7 +246,6 @@ class SatelliteService {
       this.pcs.dispose();
       this.pcs = null;
     }
-    this.scene = null;
     this.satellites = [];
     this.currentPositions = null;
     this.targetPositions = null;
