@@ -119,6 +119,12 @@ export default defineConfig({
       '@components': fileURLToPath(new URL('./src/components', import.meta.url)),
       '@hooks': fileURLToPath(new URL('./src/hooks', import.meta.url)),
       '@utils': fileURLToPath(new URL('./src/utils', import.meta.url)),
+      '@services': fileURLToPath(new URL('./src/services', import.meta.url)),
+      '@api': fileURLToPath(new URL('./src/api', import.meta.url)),
+      '@config': fileURLToPath(new URL('./src/config', import.meta.url)),
+      '@constants': fileURLToPath(new URL('./src/constants', import.meta.url)),
+      '@stores': fileURLToPath(new URL('./src/stores', import.meta.url)),
+      '@types': fileURLToPath(new URL('./src/types', import.meta.url)),
     },
   },
   server: {
@@ -128,15 +134,29 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    // 启用 CSS 代码分割
+    cssCodeSplit: true,
+    // 压缩选项
+    minify: 'esbuild',
+    // 目标浏览器
+    target: 'esnext',
     rollupOptions: {
       output: {
+        // 代码分割策略
         manualChunks: {
           'three': ['three', '@react-three/fiber', '@react-three/drei'],
           'gsap': ['gsap'],
           'react-vendor': ['react', 'react-dom'],
+          'satellite': ['satellite.js'],
         },
+        // 静态资源文件名
+        assetFileNames: 'assets/[name]-[hash][extname]',
+        chunkFileNames: 'js/[name]-[hash].js',
+        entryFileNames: 'js/[name]-[hash].js',
       },
     },
+    // 块大小警告限制
+    chunkSizeWarningLimit: 1000,
   },
   // 静态资源目录
   publicDir: 'public',

@@ -1,16 +1,19 @@
 {
-  "name": "threejs-react-starter",
+  "name": "orbital-tracker",
   "version": "2.0.0",
   "type": "module",
-  "description": "React + Three.js (R3F) + GSAP 3D可视化项目",
+  "description": "React + Three.js (R3F) + GSAP 在轨卫星追踪可视化项目",
   "author": "",
   "license": "MIT",
   "scripts": {
-    "dev": "vite",
-    "proxy": "node proxy-server.cjs",
-    "build": "tsc -b && vite build",
+    "dev": "vite --mode development",
+    "dev:test": "vite --mode test",
+    "build": "tsc -b && vite build --mode production",
+    "build:test": "tsc -b && vite build --mode test",
     "preview": "vite preview",
-    "start": "vite preview --port 5544"
+    "start": "vite preview --port 5544",
+    "type-check": "tsc --noEmit",
+    "clean": "rimraf dist node_modules/.vite"
   },
   "dependencies": {
     "@react-three/drei": "^9.117.3",
