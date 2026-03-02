@@ -1,8 +1,9 @@
 import { gsap } from 'gsap';
+import * as THREE from 'three';
 
 /**
  * GSAP 动画工具函数
- * 封装常用的动画效果
+ * 封装常用的动画效果 - 适配 Three.js
  */
 
 /**
@@ -52,10 +53,10 @@ export function scaleIn(
 }
 
 /**
- * 3D旋转动画
+ * 3D旋转动画 - Three.js 版本
  */
 export function rotate3D(
-  target: { rotation: { x?: number; y?: number; z?: number } },
+  target: THREE.Object3D,
   axis: 'x' | 'y' | 'z',
   duration: number = 10,
   repeat: number = -1
@@ -69,10 +70,10 @@ export function rotate3D(
 }
 
 /**
- * 相机平滑移动
+ * 相机平滑移动 - Three.js 版本
  */
 export function smoothCameraMove(
-  camera: { position: { x: number; y: number; z: number } },
+  camera: THREE.Camera,
   targetPosition: { x: number; y: number; z: number },
   duration: number = 1
 ): gsap.core.Tween {

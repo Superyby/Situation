@@ -1,4 +1,7 @@
-import { MeshBuilder, StandardMaterial, Texture, Scene, Mesh } from '@babylonjs/core';
+import { useRef } from 'react';
+import { useLoader, useFrame } from '@react-three/fiber';
+import { TextureLoader } from 'three';
+import * as THREE from 'three';
 
 /**
  * 地球纹理配置
@@ -9,50 +12,39 @@ export const EARTH_TEXTURES = {
 };
 
 /**
- * 地球模型 - Babylon.js WebGPU 版本
+ * 星空背景组件 - Three.js R3F 版本
  */
-class Earth {
-  /**
-   * 创建地球
-   */
-  static create(scene: Scene): Mesh {
-    const earth = MeshBuilder.CreateSphere('Earth', {
-      diameter: 2,
-      segments: 64,  // 降低分段数减少GPU负载
-    }, scene);
+export function Skybox() {
+  const texture = useLoader(TextureLoader, EARTH_TEXTURES.skybox);
 
-    const material = new StandardMaterial('earthMat', scene);
-    const texture = new Texture(EARTH_TEXTURES.dayMap, scene);
-    texture.uScale = -1;
-    texture.vScale = -1;
-    material.emissiveTexture = texture;  // 纯贴图
-    material.disableLighting = true;     // 禁用光照
-    earth.material = material;
+  return (
+    <mesh scale={[-1, 1, 1]}>
+      <sphereGeometry args={[100, 32, 32]} />
+      <meshBasicMaterial map={texture} side={THREE.BackSide} />
+    </mesh>
+  );
+}
 
-    return earth;
-  }
+/**
+ * 地球组件 - Three.js R3F 版本
+ */
+function Earth() {
+  const earthRef = useRef<THREE.Mesh>(null);
+  const texture = useLoader(TextureLoader, EARTH_TEXTURES.dayMap);
 
-  /**
-   * 创建星空背景
-   */
-  static createSkybox(scene: Scene): Mesh {
-    const skybox = MeshBuilder.CreateSphere('Skybox', {
-      diameter: 200,
-      segments: 32,  // 降低分段数
-    }, scene);
+  // 可选：添加自转动画
+  // useFrame((state, delta) => {
+  //   if (earthRef.current) {
+  //     earthRef.current.rotation.y += delta * 0.05;
+  //   }
+  // });
 
-    // 翻转使内部可见
-    skybox.scaling.x = -1;
-
-    const material = new StandardMaterial('skyMat', scene);
-    material.diffuseTexture = new Texture(EARTH_TEXTURES.skybox, scene);
-    material.emissiveTexture = material.diffuseTexture;
-    material.disableLighting = true;
-    material.backFaceCulling = false;
-    skybox.material = material;
-
-    return skybox;
-  }
+  return (
+    <mesh ref={earthRef}>
+      <sphereGeometry args={[1, 64, 64]} />
+      <meshBasicMaterial map={texture} />
+    </mesh>
+  );
 }
 
 export default Earth;

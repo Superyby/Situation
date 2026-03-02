@@ -1,7 +1,8 @@
-import { useRef, useEffect, useState } from 'react';
-import { Scene, ArcRotateCamera, HemisphericLight, DirectionalLight, Vector3, Color3, Color4, PointerEventTypes, Animation, CubicEase, EasingFunction } from '@babylonjs/core';
-import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine';
-import Earth from './Earth';
+import { useRef, useEffect, useState, Suspense } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
+import * as THREE from 'three';
+import Earth, { Skybox } from './Earth';
 import { satelliteService, SatelliteData } from '../services/satellite-service';
 
 interface SceneProps {
@@ -9,23 +10,54 @@ interface SceneProps {
 }
 
 /**
- * Babylon.js 场景组件 - WebGPU 版本
+ * 卫星点云组件
+ */
+function Satellites() {
+  const meshRef = useRef<THREE.Points>(null);
+  const { scene } = useThree();
+
+  useEffect(() => {
+    // 创建卫星点云
+    const createSatelliteMeshes = async () => {
+      await satelliteService.createSatelliteMeshes(scene);
+    };
+    createSatelliteMeshes();
+
+    return () => {
+      satelliteService.dispose();
+    };
+  }, [scene]);
+
+  // 每帧更新卫星位置
+  useFrame(() => {
+    satelliteService.interpolatePositions();
+  });
+
+  // 每秒计算新目标位置
+  useEffect(() => {
+    const timer = setInterval(() => {
+      satelliteService.updateTargetPositions();
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return <points ref={meshRef} />;
+}
+
+/**
+ * Three.js 场景组件 - R3F 版本
  */
 const SceneComponent: React.FC<SceneProps> = ({ className }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const engineRef = useRef<WebGPUEngine | null>(null);
-  const sceneRef = useRef<Scene | null>(null);
-  const cameraRef = useRef<ArcRotateCamera | null>(null);
-
   const [isLoading, setIsLoading] = useState(true);
-  const [loadingText, setLoadingText] = useState('初始化 WebGPU...');
+  const [loadingText, setLoadingText] = useState('初始化 Three.js...');
   const [satelliteCount, setSatelliteCount] = useState(0);
-  const [webgpuSupported, setWebgpuSupported] = useState(true);
   const [selectedSat, setSelectedSat] = useState<SatelliteData | null>(null);
   const [utcTime, setUtcTime] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SatelliteData[]>([]);
   const [showSearch, setShowSearch] = useState(false);
+  const cameraRef = useRef<THREE.PerspectiveCamera>(null);
+  const controlsRef = useRef<any>(null);
 
   // UTC 时间更新
   useEffect(() => {
@@ -72,197 +104,85 @@ const SceneComponent: React.FC<SceneProps> = ({ className }) => {
     setShowSearch(false);
     setSearchQuery('');
     setSearchResults([]);
-    
+
     // 相机动画拉近到卫星
     const camera = cameraRef.current;
-    const scene = sceneRef.current;
-    if (camera && scene) {
+    const controls = controlsRef.current;
+    if (camera && controls) {
       const pos = satelliteService.calculatePosition(sat.satellite);
       if (pos) {
-        // 先拉远视角
-        camera.radius = 12;
-        
-        // 目标位置动画
-        const targetAnim = new Animation('targetAnim', 'target', 60, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
-        targetAnim.setKeys([
-          { frame: 0, value: camera.target.clone() },
-          { frame: 90, value: new Vector3(pos.x, pos.y, pos.z) }
-        ]);
-        
-        // 距离拉近动画 - 拉到更近的位置
-        const radiusAnim = new Animation('radiusAnim', 'radius', 60, Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CONSTANT);
-        radiusAnim.setKeys([
-          { frame: 0, value: 12 },
-          { frame: 90, value: 1.3 }  // 更近的距离，能看到卫星点
-        ]);
-        
-        // 缓动函数
-        const easingFunction = new CubicEase();
-        easingFunction.setEasingMode(EasingFunction.EASINGMODE_EASEINOUT);
-        targetAnim.setEasingFunction(easingFunction);
-        radiusAnim.setEasingFunction(easingFunction);
-        
-        camera.animations = [targetAnim, radiusAnim];
-        scene.beginAnimation(camera, 0, 90, false);
+        // 使用 GSAP 或简单动画移动相机
+        controls.target.set(pos.x, pos.y, pos.z);
+        camera.position.set(pos.x + 2, pos.y + 1, pos.z + 2);
+        controls.update();
       }
     }
   };
 
+  // 加载卫星数据
   useEffect(() => {
-    if (!canvasRef.current) return;
-
-    let engine: WebGPUEngine | null = null;
-    let isDisposed = false;
-
-    const init = async () => {
-      // 检查 WebGPU 支持
-      if (!navigator.gpu) {
-        setWebgpuSupported(false);
-        setLoadingText('您的浏览器不支持 WebGPU');
-        return;
-      }
-
-      // 创建 WebGPU 引擎
-      setLoadingText('初始化 WebGPU 渲染器...');
-      engine = new WebGPUEngine(canvasRef.current!, {
-        antialias: true,
-        adaptToDeviceRatio: true,
-      });
-      await engine.initAsync();
-      engineRef.current = engine;
-      console.log('✅ WebGPU 渲染器初始化成功');
-
-      // 创建场景
-      const scene = new Scene(engine);
-      scene.clearColor = new Color4(0, 0, 0.03, 1);
-      sceneRef.current = scene;
-
-      // 相机 - ArcRotateCamera 自带鼠标交互
-      const camera = new ArcRotateCamera(
-        'camera',
-        Math.PI / 2,  // alpha - 水平角度
-        Math.PI / 3,  // beta - 垂直角度
-        3,            // radius - 距离
-        Vector3.Zero(),
-        scene
-      );
-      camera.attachControl(canvasRef.current!, true);
-      camera.wheelPrecision = 50;
-      camera.minZ = 0.01;  // 近裁切面，防止近距离黑屏
-      camera.lowerRadiusLimit = 1.2;  // 允许更近的距离
-      camera.upperRadiusLimit = 15;
-      camera.panningSensibility = 0; // 禁用平移
-      camera.inertia = 0.9; // 惯性
-      cameraRef.current = camera;
-
-      // 灯光
-      const hemisphericLight = new HemisphericLight('hemiLight', new Vector3(0, 1, 0), scene);
-      hemisphericLight.intensity = 0.3;
-      hemisphericLight.groundColor = new Color3(0.1, 0.1, 0.2);
-
-      const sunLight = new DirectionalLight('sunLight', new Vector3(-1, -0.5, -1), scene);
-      sunLight.intensity = 1.8;
-      sunLight.diffuse = new Color3(1, 1, 0.95);
-
-      // 星空背景
-      setLoadingText('加载星空背景...');
-      Earth.createSkybox(scene);
-
-      // 地球
-      setLoadingText('加载地球模型...');
-      Earth.create(scene);
-
-      // 加载卫星
-      setLoadingText('从 KeepTrack API 加载卫星数据...');
+    const loadSatellites = async () => {
       try {
+        setLoadingText('从 KeepTrack API 加载卫星数据...');
         await satelliteService.loadSatellites();
         setSatelliteCount(satelliteService.count);
-
         setLoadingText('创建卫星点云...');
-        await satelliteService.createSatelliteMeshes(scene);
         console.log(`✅ 加载 ${satelliteService.count} 颗卫星完成`);
+        setIsLoading(false);
       } catch (error) {
         console.error('加载卫星失败:', error);
+        setIsLoading(false);
       }
-
-      setIsLoading(false);
-
-      // 点击事件 - 检测卫星点击
-      scene.onPointerObservable.add((pointerInfo) => {
-        if (pointerInfo.type === PointerEventTypes.POINTERPICK) {
-          const pickResult = pointerInfo.pickInfo;
-          if (pickResult?.hit && pickResult.pickedMesh?.name === 'satellites') {
-            // 获取点击的点索引
-            const faceId = pickResult.faceId;
-            if (faceId >= 0) {
-              const sat = satelliteService.getSatelliteByIndex(faceId);
-              if (sat) {
-                setSelectedSat(sat);
-                // 拉近相机到卫星位置
-                const pos = satelliteService.calculatePosition(sat.satellite);
-                if (pos) {
-                  camera.setTarget(new Vector3(pos.x, pos.y, pos.z));
-                  camera.radius = 2.5;
-                }
-              }
-            }
-          } else {
-            // 点击空白处关闭面板
-            setSelectedSat(null);
-            camera.setTarget(Vector3.Zero());
-          }
-        }
-      });
-
-      // 渲染循环
-      let lastUpdate = 0;
-      engine.runRenderLoop(() => {
-        if (isDisposed) return;
-
-        // 每帧插值卫星位置
-        satelliteService.interpolatePositions();
-
-        // 每秒计算新目标位置
-        const now = Date.now();
-        if (now - lastUpdate > 1000) {
-          satelliteService.updateTargetPositions();
-          lastUpdate = now;
-        }
-
-        scene.render();
-      });
-
-      // 窗口大小变化处理
-      const handleResize = () => {
-        engine?.resize();
-      };
-      window.addEventListener('resize', handleResize);
-
-      // 清理函数
-      return () => {
-        isDisposed = true;
-        window.removeEventListener('resize', handleResize);
-        satelliteService.dispose();
-        scene.dispose();
-        engine?.dispose();
-      };
     };
-
-    const cleanup = init();
-    return () => {
-      cleanup.then(fn => fn?.());
-    };
+    loadSatellites();
   }, []);
 
   return (
     <div className={`scene-container ${className || ''}`}>
-      <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} />
+      <Canvas
+        style={{ width: '100%', height: '100%', background: '#000008' }}
+        gl={{ antialias: true, alpha: false }}
+      >
+        <PerspectiveCamera
+          ref={cameraRef}
+          makeDefault
+          position={[3, 2, 3]}
+          fov={50}
+          near={0.01}
+          far={1000}
+        />
+        <OrbitControls
+          ref={controlsRef}
+          enablePan={false}
+          minDistance={1.2}
+          maxDistance={15}
+          dampingFactor={0.05}
+          enableDamping
+        />
+
+        {/* 灯光 */}
+        <ambientLight intensity={0.3} />
+        <directionalLight
+          position={[-5, -2, -5]}
+          intensity={1.8}
+          color="#fffff2"
+        />
+
+        <Suspense fallback={null}>
+          {/* 星空背景 */}
+          <Skybox />
+          {/* 地球 */}
+          <Earth />
+          {/* 卫星 */}
+          {!isLoading && <Satellites />}
+        </Suspense>
+      </Canvas>
 
       <div className="ui-overlay">
         <div className="title-section">
           <div className="title-glow">
             <h1>ORBITAL TRACKER</h1>
-            <span className="subtitle">WebGPU Powered</span>
+            <span className="subtitle">Three.js Powered</span>
           </div>
           <div className="stats">
             <div className="stat-item">
@@ -369,15 +289,6 @@ const SceneComponent: React.FC<SceneProps> = ({ className }) => {
         <div className="loading-screen">
           <div className="loading-spinner"></div>
           <div className="loading-text">{loadingText}</div>
-        </div>
-      )}
-
-      {!webgpuSupported && !isLoading && (
-        <div className="loading-screen">
-          <div className="loading-text error">
-            您的浏览器不支持 WebGPU<br />
-            请使用最新版 Chrome、Edge 或 Firefox
-          </div>
         </div>
       )}
     </div>
