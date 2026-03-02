@@ -1,4 +1,4 @@
-import { Satellite, TleLine1, TleLine2 } from 'ootk';
+import { twoline2satrec, SatRec } from 'satellite.js';
 
 const API_BASE = 'https://api.keeptrack.space/v2';
 
@@ -25,7 +25,7 @@ export interface KeepTrackSatellite {
 export interface SatelliteData {
   id: number;
   name: string;
-  satellite: Satellite;
+  satrec: SatRec;  // satellite.js 的轨道记录对象
   color: number;
   type: number;
 }
@@ -170,16 +170,12 @@ class KeepTrackApi {
         return null;
       }
 
-      const satellite = new Satellite({
-        name: name,
-        tle1: tle1 as TleLine1,
-        tle2: tle2 as TleLine2,
-      });
+      const satrec = twoline2satrec(tle1, tle2);
 
       return {
         id,
         name,
-        satellite,
+        satrec,
         color: this.getColorByName(name),
         type,
       };

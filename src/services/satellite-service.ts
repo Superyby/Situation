@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Satellite } from 'ootk';
+import { propagate, EciVec3, SatRec } from 'satellite.js';
 import { keepTrackApi, SatelliteData } from '../api/keeptrack';
 
 export type { SatelliteData };
@@ -41,15 +41,17 @@ class SatelliteService {
   /**
    * 计算卫星位置（带有效性验证）
    */
-  calculatePosition(satellite: Satellite): { x: number; y: number; z: number } | null {
+  calculatePosition(satrec: SatRec): { x: number; y: number; z: number } | null {
     try {
-      const eci = satellite.eci();
-      if (!eci || !eci.position) return null;
+      const positionAndVelocity = propagate(satrec, new Date());
+      const position = positionAndVelocity.position as EciVec3<number> | false;
+      
+      if (!position || position === false) return null;
 
       const scale = 1 / EARTH_RADIUS_KM;
-      const x = eci.position.x * scale;
-      const y = eci.position.z * scale;
-      const z = -eci.position.y * scale;
+      const x = position.x * scale;
+      const y = position.z * scale;
+      const z = -position.y * scale;
 
       if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return null;
 
@@ -79,7 +81,7 @@ class SatelliteService {
     // 计算初始位置
     for (let i = 0; i < count; i++) {
       const sat = this.satellites[i];
-      const pos = this.calculatePosition(sat.satellite);
+      const pos = this.calculatePosition(sat.satrec);
       const i3 = i * 3;
 
       if (pos) {
@@ -122,7 +124,7 @@ class SatelliteService {
 
     for (let i = 0; i < this.satellites.length; i++) {
       const sat = this.satellites[i];
-      const pos = this.calculatePosition(sat.satellite);
+      const pos = this.calculatePosition(sat.satrec);
       const i3 = i * 3;
 
       if (pos) {
@@ -163,25 +165,28 @@ class SatelliteService {
   /**
    * 获取卫星详细信息（高度、速度、周期）
    */
-  getSatelliteDetails(satellite: Satellite): { altitude: number; velocity: number; period: number } | null {
+  getSatelliteDetails(satrec: SatRec): { altitude: number; velocity: number; period: number } | null {
     try {
-      const eci = satellite.eci();
-      if (!eci || !eci.position || !eci.velocity) return null;
+      const positionAndVelocity = propagate(satrec, new Date());
+      const position = positionAndVelocity.position as EciVec3<number> | false;
+      const velocity = positionAndVelocity.velocity as EciVec3<number> | false;
+      
+      if (!position || position === false || !velocity || velocity === false) return null;
 
       const r = Math.sqrt(
-        eci.position.x ** 2 + eci.position.y ** 2 + eci.position.z ** 2
+        position.x ** 2 + position.y ** 2 + position.z ** 2
       );
       const altitude = r - EARTH_RADIUS_KM;
 
-      const velocity = Math.sqrt(
-        eci.velocity.x ** 2 + eci.velocity.y ** 2 + eci.velocity.z ** 2
+      const vel = Math.sqrt(
+        velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2
       );
 
-      const period = (2 * Math.PI * r) / velocity / 60;
+      const period = (2 * Math.PI * r) / vel / 60;
 
       return {
         altitude: Math.round(altitude),
-        velocity: Math.round(velocity * 100) / 100,
+        velocity: Math.round(vel * 100) / 100,
         period: Math.round(period * 10) / 10
       };
     } catch {

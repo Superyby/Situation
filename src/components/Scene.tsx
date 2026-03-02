@@ -109,7 +109,7 @@ const SceneComponent: React.FC<SceneProps> = ({ className }) => {
     const camera = cameraRef.current;
     const controls = controlsRef.current;
     if (camera && controls) {
-      const pos = satelliteService.calculatePosition(sat.satellite);
+      const pos = satelliteService.calculatePosition(sat.satrec);
       if (pos) {
         // 使用 GSAP 或简单动画移动相机
         controls.target.set(pos.x, pos.y, pos.z);
@@ -248,7 +248,7 @@ const SceneComponent: React.FC<SceneProps> = ({ className }) => {
 
       {/* 卫星信息面板 */}
       {selectedSat && (() => {
-        const details = satelliteService.getSatelliteDetails(selectedSat.satellite);
+        const details = satelliteService.getSatelliteDetails(selectedSat.satrec);
         return (
           <div className="satellite-panel">
             <div className="panel-header">
