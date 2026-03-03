@@ -37,9 +37,6 @@
     "@types/three": "^0.171.0",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.9.3",
-    "vite": "^7.0.0-beta.2"
+    "vite": "^7.3.1"
   }
-  // "volta": {
-  //   "node": "25.0.0"
-  // }
 }
