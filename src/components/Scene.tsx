@@ -118,6 +118,7 @@ const SceneComponent: React.FC<SceneProps> = ({ className }) => {
       }
     }
   };
+  
 
   // 加载卫星数据
   useEffect(() => {
@@ -238,7 +239,7 @@ const SceneComponent: React.FC<SceneProps> = ({ className }) => {
           )}
         </div>
       )}
-      
+
 
       {/* 快捷键提示 */}
       {!isLoading && !showSearch && !selectedSat && (
