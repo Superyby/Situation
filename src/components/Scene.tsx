@@ -9,6 +9,7 @@ interface SceneProps {
   className?: string;
 }
 
+
 /**
  * 卫星点云组件
  */
@@ -99,7 +100,7 @@ const SceneComponent: React.FC<SceneProps> = ({ className }) => {
     setSearchResults(results);
   };
 
-  
+
   const selectSatellite = (sat: SatelliteData) => {
     setSelectedSat(sat);
     setShowSearch(false);
