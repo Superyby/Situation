@@ -238,6 +238,7 @@ const SceneComponent: React.FC<SceneProps> = ({ className }) => {
           )}
         </div>
       )}
+      
 
       {/* 快捷键提示 */}
       {!isLoading && !showSearch && !selectedSat && (
