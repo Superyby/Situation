@@ -45,8 +45,8 @@ class SatelliteService {
     try {
       const positionAndVelocity = propagate(satrec, new Date());
       const position = positionAndVelocity.position as EciVec3<number> | false;
-      
-      if (!position || position === false) return null;
+
+      if (!position) return null;
 
       const scale = 1 / EARTH_RADIUS_KM;
       const x = position.x * scale;
@@ -170,8 +170,8 @@ class SatelliteService {
       const positionAndVelocity = propagate(satrec, new Date());
       const position = positionAndVelocity.position as EciVec3<number> | false;
       const velocity = positionAndVelocity.velocity as EciVec3<number> | false;
-      
-      if (!position || position === false || !velocity || velocity === false) return null;
+
+      if (!position || !velocity) return null;
 
       const r = Math.sqrt(
         position.x ** 2 + position.y ** 2 + position.z ** 2

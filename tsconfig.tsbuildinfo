@@ -1,18 +1,1 @@
-{
-  "root": [
-    "./src/app.tsx",
-    "./src/main.tsx",
-    "./src/vite-env.d.ts",
-    "./src/api/keeptrack.ts",
-    "./src/api/space-track.ts",
-    "./src/components/earth.tsx",
-    "./src/components/scene.tsx",
-    "./src/config/credentials.ts",
-    "./src/config/index.ts",
-    "./src/services/satellite-service.ts",
-    "./src/types/satellite.ts",
-    "./src/utils/animation.ts",
-    "./vite.config.ts"
-  ],
-  "version": "5.9.3"
-}
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/api/keeptrack.ts","./src/api/space-track.ts","./src/components/earth.tsx","./src/components/scene.tsx","./src/config/credentials.ts","./src/config/env.ts","./src/config/index.ts","./src/constants/index.ts","./src/hooks/index.ts","./src/services/satellite-service.ts","./src/stores/index.ts","./src/types/satellite.ts","./src/utils/animation.ts","./src/utils/http.ts","./vite.config.ts"],"errors":true,"version":"5.9.3"}
