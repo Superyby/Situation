@@ -99,6 +99,7 @@ const SceneComponent: React.FC<SceneProps> = ({ className }) => {
     setSearchResults(results);
   };
 
+  
   const selectSatellite = (sat: SatelliteData) => {
     setSelectedSat(sat);
     setShowSearch(false);
@@ -118,7 +119,7 @@ const SceneComponent: React.FC<SceneProps> = ({ className }) => {
       }
     }
   };
-  
+
 
   // 加载卫星数据
   useEffect(() => {
